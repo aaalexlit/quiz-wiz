@@ -1,0 +1,9 @@
+streamlit
+weaviate-client
+clarifai
+assemblyai
+llama-index
+yt_dlp
+pydub
+langchainhub
+

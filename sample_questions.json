@@ -1,0 +1,50 @@
+[
+  {
+    "question": "What is the purpose of pseudonymisation in relation to personal data?",
+    "answers": [
+      "A. To make the data more accessible to third parties.",
+      "B. To increase the value of the data for the data controller.",
+      "C. To make the data easier to store and manage.",
+      "D. To reduce the risks to the data subjects and help meet data-protection obligations."
+    ],
+    "rationales": [
+      "Incorrect. Pseudonymisation does not aim to make the data more accessible to third parties, but rather to protect the data subjects. See \u201cData Protection and Privacy.\u201d",
+      "Incorrect. The purpose of pseudonymisation is not to increase the value of the data for the data controller, but to protect the data subjects. Learning Objective: Understand the principles of data protection and privacy. Review Module 2: \u201cData Protection and Privacy.\u201d",
+      "Incorrect. While pseudonymisation may make data easier to manage in some respects, its primary purpose is to protect the data subjects. See \u201cData Protection and Privacy.\u201d",
+      "Correct. Pseudonymisation is a data protection measure that reduces the risks to the data subjects and helps data controllers and processors meet their data-protection obligations. Review Module 2: \u201cData Protection and Privacy.\u201d"
+    ],
+    "correct": 3
+  },
+  {
+    "question": "What is the purpose of plotting a PR curve in precision and recall analysis?",
+    "answers": [
+      "A. To visualize the trade-off between precision and recall for different thresholds.",
+      "B. To determine the accuracy of the model.",
+      "C. To identify the best features for the model.",
+      "D. To measure the model's performance on unseen data."
+    ],
+    "rationales": [
+      "Correct. A PR curve is used to visualize the trade-off between precision and recall for different thresholds. This helps in understanding how the choice of threshold affects the model's performance. Review Module 3: 'Precision and Recall Analysis'.",
+      "Incorrect. While accuracy is an important metric, a PR curve specifically visualizes the trade-off between precision and recall, not the overall accuracy of the model. See 'Precision and Recall Analysis'.",
+      "Incorrect. A PR curve does not help in identifying the best features for the model. It is used to visualize the trade-off between precision and recall for different thresholds. Learning Objective: Understand the principles of precision and recall analysis. Review Module 3: 'Precision and Recall Analysis'.",
+      "Incorrect. While a PR curve can provide insights into a model's performance, it does not specifically measure the model's performance on unseen data. It visualizes the trade-off between precision and recall for different thresholds. See 'Precision and Recall Analysis'."
+    ],
+    "correct": 0
+  },
+  {
+    "question": "What is the purpose of pseudonymisation in relation to personal data?",
+    "answers": [
+      "A. To make the data more accessible to third parties.",
+      "B. To increase the value of the data for the data controller.",
+      "C. To make the data easier to store and manage.",
+      "D. To reduce the risks to the data subjects and help meet data-protection obligations."
+    ],
+    "rationales": [
+      "Incorrect. Pseudonymisation does not aim to make the data more accessible to third parties, but rather to protect the data subjects. See \u201cData Protection and Privacy.\u201d",
+      "Incorrect. The purpose of pseudonymisation is not to increase the value of the data for the data controller, but to protect the data subjects. Learning Objective: Understand the principles of data protection and privacy. Review Module 2: \u201cData Protection and Privacy.\u201d",
+      "Incorrect. While pseudonymisation may make data easier to manage in some respects, its primary purpose is to protect the data subjects. See \u201cData Protection and Privacy.\u201d",
+      "Correct. Pseudonymisation is a data protection measure that reduces the risks to the data subjects and helps data controllers and processors meet their data-protection obligations. Review Module 2: \u201cData Protection and Privacy.\u201d"
+    ],
+    "correct": 3
+  }
+]
