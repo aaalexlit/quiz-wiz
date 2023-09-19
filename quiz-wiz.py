@@ -198,13 +198,14 @@ def extract_video_text():
 def fetch_context_question_from_weaviate(topic: str | None, num_of_questions_to_generate: int) -> list[dict]:
     query = (client.query
              .get(st.session_state.weaviate_class_name,
-                  ["text", "questions_this_excerpt_can_answer"])
-             .with_limit(num_of_questions_to_generate + 5))
+                  ["text", "questions_this_excerpt_can_answer"]))
     if topic:
         near_vector = {
             "vector": embeddings.embed_query(topic)
         }
-        query = query.with_near_vector(near_vector).with_autocut(2)
+        query = query.with_near_vector(near_vector).with_autocut(2).with_limit(num_of_questions_to_generate)
+    else:
+        query = query.with_limit(num_of_questions_to_generate + 5)
     result = query.do()
     return random.choices(result["data"]["Get"][st.session_state.weaviate_class_name],
                           k=num_of_questions_to_generate)
