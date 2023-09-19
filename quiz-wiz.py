@@ -201,7 +201,7 @@ def fetch_context_question_from_weaviate(topic: str | None,
         near_vector = {
             "vector": embeddings.embed_query(topic)
         }
-        result = query.with_near_vector(near_vector).with_autocut(2).with_limit(num_of_questions_to_generate).do()
+        result = query.with_near_vector(near_vector).with_autocut(1).with_limit(num_of_questions_to_generate).do()
         return result["data"]["Get"][st.session_state.weaviate_class_name]
     else:
         query_result = query.with_limit(num_of_questions_to_generate + 5).do()
