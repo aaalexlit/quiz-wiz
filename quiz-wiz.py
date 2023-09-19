@@ -117,9 +117,9 @@ def extract_nodes_from_documents(docs: list[Document]):
     )
     try:
         return node_parser.get_nodes_from_documents(docs)
-    except Exception as e:
-        st.error("There's been an error on Clarifai side. Please see the details below: ")
-        st.exception(e)
+    except Exception:
+        st.error("A timeout has occurred on Clarifai's side when indexing your document. "
+                 "Please try again later.")
         st.stop()
 
 
@@ -269,7 +269,12 @@ with generate_questions_col:
 if generate_quiz_button:
     with st.spinner("Generating quiz"):
         context_question = fetch_context_question_from_weaviate(freetext_topic, num_of_questions_to_generate)
-        generate_quiz(context_question)
+        try:
+            generate_quiz(context_question)
+        except Exception as e:
+            st.error("A timeout has occurred on Clarifai's side when generating the quiz questions. "
+                     "Please try again later")
+            st.stop()
 
 if 'quiz_questions' in st.session_state:
     with quizz_col:
