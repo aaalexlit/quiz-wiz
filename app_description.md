@@ -14,3 +14,7 @@ Elevate your learning experience today with QuizWiz and unlock your full potenti
 3. Test your knowledge
 
 Pressing `Reset` removes all the added documents and allows to start from scratch
+
+### Notes:
+1. Works only with English
+2. Some YT videos are protected and won't be processed

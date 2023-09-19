@@ -195,7 +195,8 @@ def extract_video_text():
             remove_local_dir(st.session_state.save_dir)
 
 
-def fetch_context_question_from_weaviate(topic: str | None, num_of_questions_to_generate: int) -> list[dict]:
+def fetch_context_question_from_weaviate(topic: str | None,
+                                         num_of_questions_to_generate: int) -> list[dict]:
     query = (client.query
              .get(st.session_state.weaviate_class_name,
                   ["text", "questions_this_excerpt_can_answer"]))
@@ -203,12 +204,12 @@ def fetch_context_question_from_weaviate(topic: str | None, num_of_questions_to_
         near_vector = {
             "vector": embeddings.embed_query(topic)
         }
-        query = query.with_near_vector(near_vector).with_autocut(2).with_limit(num_of_questions_to_generate)
+        result = query.with_near_vector(near_vector).with_autocut(2).with_limit(num_of_questions_to_generate).do()
+        return result["data"]["Get"][st.session_state.weaviate_class_name]
     else:
-        query = query.with_limit(num_of_questions_to_generate + 5)
-    result = query.do()
-    return random.choices(result["data"]["Get"][st.session_state.weaviate_class_name],
-                          k=num_of_questions_to_generate)
+        query_result = query.with_limit(num_of_questions_to_generate + 5).do()
+        result = query_result["data"]["Get"][st.session_state.weaviate_class_name]
+        return random.choices(result, k=max(num_of_questions_to_generate, len(result)))
 
 
 def generate_quiz(context_question_list: list[dict]):
