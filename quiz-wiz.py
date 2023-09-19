@@ -209,7 +209,7 @@ def fetch_context_question_from_weaviate(topic: str | None,
     else:
         query_result = query.with_limit(num_of_questions_to_generate + 5).do()
         result = query_result["data"]["Get"][st.session_state.weaviate_class_name]
-        return random.choices(result, k=max(num_of_questions_to_generate, len(result)))
+        return random.sample(result, k=max(num_of_questions_to_generate, len(result)))
 
 
 def generate_quiz(context_question_list: list[dict]):
