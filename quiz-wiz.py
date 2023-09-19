@@ -184,10 +184,7 @@ def create_schema():
 def extract_video_text():
     st.session_state.save_dir = f'vids/{youtube_video_id}'
     try:
-        vid_text = transcribe(youtube_video_id)
-        # with st.expander('transcript'):
-        #     st.write(vid_text)
-        return vid_text
+        return transcribe(youtube_video_id)
     except Exception as e:
         st.error(e)
     finally:
@@ -209,7 +206,7 @@ def fetch_context_question_from_weaviate(topic: str | None,
     else:
         query_result = query.with_limit(num_of_questions_to_generate + 5).do()
         result = query_result["data"]["Get"][st.session_state.weaviate_class_name]
-        return random.sample(result, k=max(num_of_questions_to_generate, len(result)))
+        return random.sample(result, k=min(num_of_questions_to_generate, len(result)))
 
 
 def generate_quiz(context_question_list: list[dict]):
