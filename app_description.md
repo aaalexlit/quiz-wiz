@@ -12,3 +12,5 @@ Elevate your learning experience today with QuizWiz and unlock your full potenti
 1. Upload your documents. 
 2. Generate the quizz
 3. Test your knowledge
+
+Pressing `Reset` removes all the added documents and allows to start from scratch

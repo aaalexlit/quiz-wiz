@@ -1,9 +1,13 @@
 import json
+import math
 import os
+import random
 import re
 import shutil
+import uuid
 
 import assemblyai as aai
+import pandas as pd
 import requests
 import streamlit as st
 import weaviate
@@ -33,7 +37,7 @@ CLF_GPT4_MODEL_ID = 'GPT-4'
 CLF_EMBED_MODEL_ID = 'text-embedding-ada'
 # CLF_GPT35_MODEL_ID = 'GPT-3_5-turbo'
 
-WEAVIATE_CLASS_NAME = "StreamlitDocument"
+WEAVIATE_CLASS_PREFIX = "StreamlitDocument"
 
 CLARIFAI_PAT = st.secrets['CLARIFAI_PAT']
 
@@ -102,7 +106,15 @@ def get_video_name():
 
 def index_yt_transcript(video_text):
     transcript_doc = Document(text=video_text)
+    transcript_doc.metadata['title'] = vid_name
+    transcript_doc.metadata['type'] = 'YT video'
     index_in_weaviate([transcript_doc])
+
+
+def get_docs_title_and_type():
+    res = client.query.get(st.session_state.weaviate_class_name,
+                           ['title', 'type']).do()
+    return pd.DataFrame(res['data']['Get'][st.session_state.weaviate_class_name]).drop_duplicates()
 
 
 def extract_nodes_from_documents(docs: list[Document]):
@@ -129,8 +141,9 @@ def index_in_weaviate(docs: list[Document]):
                                                    llm=llamaindex_llm
                                                    )
     extracted_nodes = extract_nodes_from_documents(docs)
-    weaviate_index = VectorStoreIndex.from_vector_store(vector_store=WeaviateVectorStore(weaviate_client=client,
-                                                                                         index_name=WEAVIATE_CLASS_NAME),
+    weaviate_vector_store = WeaviateVectorStore(weaviate_client=client,
+                                                index_name=st.session_state.weaviate_class_name)
+    weaviate_index = VectorStoreIndex.from_vector_store(vector_store=weaviate_vector_store,
                                                         service_context=service_context,
                                                         )
     weaviate_index.insert_nodes(extracted_nodes)
@@ -138,7 +151,7 @@ def index_in_weaviate(docs: list[Document]):
 
 def create_schema():
     class_schema = {
-        "class": WEAVIATE_CLASS_NAME,
+        "class": st.session_state.weaviate_class_name,
         "vectorizer": "none",
         "description": "Documents uploaded by user",
         "vectorIndexConfig": {
@@ -152,10 +165,18 @@ def create_schema():
             {
                 "name": "questions_this_excerpt_can_answer",
                 "dataType": ["text"],
+            },
+            {
+                "name": "title",
+                "dataType": ["text"]
+            },
+            {
+                "name": "type",
+                "dataType": ["text"]
             }
         ]
     }
-    class_exists = client.schema.exists(WEAVIATE_CLASS_NAME)
+    class_exists = client.schema.exists(st.session_state.weaviate_class_name)
     if not class_exists:
         client.schema.create_class(class_schema)
 
@@ -176,15 +197,17 @@ def extract_video_text():
 
 def fetch_context_question_from_weaviate(topic: str | None, num_of_questions_to_generate: int) -> list[dict]:
     query = (client.query
-             .get(WEAVIATE_CLASS_NAME, ["text", "questions_this_excerpt_can_answer"])
-             .with_limit(num_of_questions_to_generate))
+             .get(st.session_state.weaviate_class_name,
+                  ["text", "questions_this_excerpt_can_answer"])
+             .with_limit(num_of_questions_to_generate + 5))
     if topic:
         near_vector = {
             "vector": embeddings.embed_query(topic)
         }
-        query = query.with_near_vector(near_vector)
+        query = query.with_near_vector(near_vector).with_autocut(2)
     result = query.do()
-    return result["data"]["Get"][WEAVIATE_CLASS_NAME]
+    return random.choices(result["data"]["Get"][st.session_state.weaviate_class_name],
+                          k=num_of_questions_to_generate)
 
 
 def generate_quiz(context_question_list: list[dict]):
@@ -218,30 +241,46 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+if 'weaviate_class_name' not in st.session_state:
+    st.session_state.weaviate_class_name = f'{WEAVIATE_CLASS_PREFIX}_{uuid.uuid4().hex}'
+
 with st.sidebar:
     with open('app_description.md') as descr:
         st.write(descr.read())
+
+warning_col, reset_col = st.columns(2)
+with warning_col:
+    st.warning(":heavy_exclamation_mark: **Note**: Processing takes quite a while.  \n"
+               ":pray: Please be patient, the result will eventually arrive!")
+with reset_col:
+    if st.button('Reset',
+                 type='primary',
+                 help='Remove all the index documents and start from scratch'):
+        client.schema.delete_class(st.session_state.weaviate_class_name)
+        if 'indexed' in st.session_state:
+            st.session_state.pop('indexed')
+        if 'quiz_questions' in st.session_state:
+            st.session_state.pop('quiz_questions')
+        st.experimental_rerun()
 
 select_sources_col, generate_questions_col, quizz_col = st.columns([1, 1, 2])
 
 with select_sources_col:
     st.header("Documents upload")
-    with st.form('sources'):
+    sources_form = st.form('sources')
+    with sources_form:
         youtube_link = st.text_input('Link to YT video',
-                                     value='https://www.youtube.com/watch?v=LU7JklH-ycE')
+                                     value='https://www.youtube.com/watch?v=Kf3LeaUGwlg')
 
-        index_sources = st.form_submit_button('Index sources')
+        video_placeholder = st.empty()
+
+        index_sources = st.form_submit_button('Add sources',
+                                              help='Add sources to be quizzed about')
         if youtube_link and not check_video_url():
             st.warning('Please input a valid Youtube video link')
             st.stop()
-
-if st.button('Reset'):
-    client.schema.delete_class(WEAVIATE_CLASS_NAME)
-    if 'indexed' in st.session_state:
-        st.session_state.pop('indexed')
-    if 'quiz_questions' in st.session_state:
-        st.session_state.pop('quiz_questions')
-    st.experimental_rerun()
+        if youtube_link:
+            video_placeholder.video(youtube_link)
 
 if index_sources:
     if youtube_link:
@@ -255,6 +294,11 @@ generate_button_disabled = 'indexed' not in st.session_state
 
 with generate_questions_col:
     st.header("Generate the quiz")
+    if not generate_button_disabled:
+        st.subheader("Available sources")
+        st.dataframe(get_docs_title_and_type(),
+                     hide_index=True,
+                     use_container_width=True)
     with st.form('generate'):
         num_of_questions_to_generate = st.number_input('Max number of question to generate',
                                                        min_value=1,
@@ -283,16 +327,18 @@ if 'quiz_questions' in st.session_state:
             # quiz_questions = read_sample_quizz_questions()
             quiz_questions = st.session_state.quiz_questions
             number_of_questions = len(quiz_questions)
-            pass_score = st.select_slider('Pass score',
-                                          range(1, number_of_questions + 1),
-                                          value=int(0.8 * number_of_questions))
+            if number_of_questions > 1:
+                pass_score = st.select_slider('Pass score',
+                                              range(1, number_of_questions + 1),
+                                              value=math.ceil(0.8 * number_of_questions))
+            else:
+                pass_score = 1
             answers = []
             containers = []
             for i, question in enumerate(quiz_questions):
                 container = st.container()
                 answer = container.radio(f'Question {i + 1}: {question["question"]}',
                                          question['answers'],
-
                                          )
                 answers.append(question['answers'].index(answer))
                 containers.append(container)
