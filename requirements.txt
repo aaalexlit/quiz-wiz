@@ -6,4 +6,5 @@ llama-index
 yt_dlp
 pydub
 langchainhub
-
+unstructured
+pdf2image

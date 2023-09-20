@@ -1,3 +1,4 @@
+import asyncio
 import json
 import math
 import os
@@ -12,6 +13,7 @@ import requests
 import streamlit as st
 import weaviate
 from langchain import hub, LLMChain
+from langchain.document_loaders import OnlinePDFLoader
 from langchain.document_loaders import YoutubeAudioLoader
 from langchain.embeddings import ClarifaiEmbeddings
 from langchain.llms import Clarifai
@@ -25,17 +27,12 @@ PROJECT_NAME = 'quiz-wiz'
 
 auth_config = weaviate.AuthApiKey(api_key=os.getenv('WEAVIATE_API_KEY'))
 
-client = weaviate.Client(
-    url="https://streamlit-llm-hackathon-4yu6ne2w.weaviate.network",
-    auth_client_secret=auth_config
-)
-
 CLF_OPENAI_USER_ID = 'openai'
 CLF_CHAT_COMPLETION_APP_ID = 'chat-completion'
 CLF_EMBED_APP_ID = 'embed'
 CLF_GPT4_MODEL_ID = 'GPT-4'
 CLF_EMBED_MODEL_ID = 'text-embedding-ada'
-# CLF_GPT35_MODEL_ID = 'GPT-3_5-turbo'
+CLF_GPT35_MODEL_ID = 'GPT-3_5-turbo'
 
 WEAVIATE_CLASS_PREFIX = "StreamlitDocument"
 
@@ -55,6 +52,13 @@ langchain_llm = Clarifai(
 )
 llamaindex_llm = LangChainLLM(langchain_llm)
 
+qa_llm = LangChainLLM(Clarifai(
+    pat=CLARIFAI_PAT,
+    user_id=CLF_OPENAI_USER_ID,
+    app_id=CLF_CHAT_COMPLETION_APP_ID,
+    model_id=CLF_GPT35_MODEL_ID,
+))
+
 # Initialize a Clarifai embedding model
 embeddings = ClarifaiEmbeddings(
     pat=CLARIFAI_PAT,
@@ -63,6 +67,15 @@ embeddings = ClarifaiEmbeddings(
     model_id=CLF_EMBED_MODEL_ID
 )
 llamaindex_embedding = LangchainEmbedding(embeddings)
+
+quizz_chain = LLMChain(prompt=QUIZ_GEN_PROMPT, llm=langchain_llm)
+
+
+def connect_to_weaviate():
+    return weaviate.Client(
+        url="https://streamlit-llm-hackathon-4yu6ne2w.weaviate.network",
+        auth_client_secret=auth_config
+    )
 
 
 def read_sample_quizz_questions():
@@ -111,7 +124,18 @@ def index_yt_transcript(video_text):
     index_in_weaviate([transcript_doc])
 
 
+def index_pdf():
+    loader = OnlinePDFLoader(pdf_url)
+    lch_docs = loader.load()
+    docs = [Document.from_langchain_format(doc) for doc in lch_docs]
+    for doc in docs:
+        doc.metadata['title'] = pdf_url
+        doc.metadata['type'] = 'pdf'
+    index_in_weaviate(docs)
+
+
 def get_docs_title_and_type():
+    client = connect_to_weaviate()
     res = client.query.get(st.session_state.weaviate_class_name,
                            ['title', 'type']).do()
     return pd.DataFrame(res['data']['Get'][st.session_state.weaviate_class_name]).drop_duplicates()
@@ -120,11 +144,11 @@ def get_docs_title_and_type():
 def extract_nodes_from_documents(docs: list[Document]):
     metadata_extractor = MetadataExtractor(
         extractors=[
-            QuestionsAnsweredExtractor(questions=1, llm=llamaindex_llm, prompt_template=QA_GEN_PROMPT),
+            QuestionsAnsweredExtractor(questions=1, llm=qa_llm, prompt_template=QA_GEN_PROMPT),
         ],
     )
     node_parser = SimpleNodeParser.from_defaults(
-        chunk_size=500, chunk_overlap=200,
+        chunk_size=500, chunk_overlap=100,
         metadata_extractor=metadata_extractor,
     )
     try:
@@ -141,6 +165,7 @@ def index_in_weaviate(docs: list[Document]):
                                                    llm=llamaindex_llm
                                                    )
     extracted_nodes = extract_nodes_from_documents(docs)
+    client = connect_to_weaviate()
     weaviate_vector_store = WeaviateVectorStore(weaviate_client=client,
                                                 index_name=st.session_state.weaviate_class_name)
     weaviate_index = VectorStoreIndex.from_vector_store(vector_store=weaviate_vector_store,
@@ -176,6 +201,7 @@ def create_schema():
             }
         ]
     }
+    client = connect_to_weaviate()
     class_exists = client.schema.exists(st.session_state.weaviate_class_name)
     if not class_exists:
         client.schema.create_class(class_schema)
@@ -194,6 +220,7 @@ def extract_video_text():
 
 def fetch_context_question_from_weaviate(topic: str | None,
                                          num_of_questions_to_generate: int) -> list[dict]:
+    client = connect_to_weaviate()
     query = (client.query
              .get(st.session_state.weaviate_class_name,
                   ["text", "questions_this_excerpt_can_answer"]))
@@ -209,16 +236,20 @@ def fetch_context_question_from_weaviate(topic: str | None,
         return random.sample(result, k=min(num_of_questions_to_generate, len(result)))
 
 
-def generate_quiz(context_question_list: list[dict]):
-    generated_quiz_questions = []
-    for context_question_obj in context_question_list:
-        context = context_question_obj["text"]
-        question = context_question_obj["questions_this_excerpt_can_answer"]
-        llm_chain = LLMChain(prompt=QUIZ_GEN_PROMPT, llm=langchain_llm)
-        result = llm_chain.run(context=context, question=question)
-        result_dict = json.loads(result)
-        generated_quiz_questions.append(result_dict)
-    st.session_state.quiz_questions = generated_quiz_questions
+async def async_generate_question(context_question_obj):
+    context = context_question_obj["text"]
+    question = context_question_obj["questions_this_excerpt_can_answer"]
+    result = await quizz_chain.arun(context=context, question=question)
+    return json.loads(result)
+
+
+async def generate_quiz(context_question_list: list[dict]):
+    tasks = [async_generate_question(obj) for obj in context_question_list]
+    return await asyncio.gather(*tasks)
+
+
+def get_quiz(context_question_list: list[dict]):
+    st.session_state.quiz_questions = asyncio.run(generate_quiz(context_question_list))
 
 
 @st.cache_data(show_spinner="Transcribing the video")
@@ -255,6 +286,7 @@ with reset_col:
     if st.button('Reset',
                  type='primary',
                  help='Remove all the index documents and start from scratch'):
+        client = connect_to_weaviate()
         client.schema.delete_class(st.session_state.weaviate_class_name)
         if 'indexed' in st.session_state:
             st.session_state.pop('indexed')
@@ -273,6 +305,8 @@ with select_sources_col:
 
         video_placeholder = st.empty()
 
+        pdf_url = st.text_input('Add PDF URL')
+
         index_sources = st.form_submit_button('Add sources',
                                               help='Add sources to be quizzed about')
         if youtube_link and not check_video_url():
@@ -281,12 +315,21 @@ with select_sources_col:
         if youtube_link:
             video_placeholder.video(youtube_link)
 
+        if pdf_url and '.pdf' not in pdf_url:
+            st.warning('Please choose a valid pdf')
+            pdf_url = None
+
 if index_sources:
     if youtube_link:
         vid_name = get_video_name()
         youtube_video_id = extract_youtube_video_id()
-        with st.spinner("Indexing the data in Weaviate"):
+        with st.spinner("Indexing video"):
             index_yt_transcript(video_text=extract_video_text())
+        st.session_state['indexed'] = True
+
+    if pdf_url:
+        with st.spinner("Indexing pdf"):
+            index_pdf()
         st.session_state['indexed'] = True
 
 generate_button_disabled = 'indexed' not in st.session_state
@@ -313,7 +356,7 @@ if generate_quiz_button:
     with st.spinner("Generating quiz"):
         context_question = fetch_context_question_from_weaviate(freetext_topic, num_of_questions_to_generate)
         try:
-            generate_quiz(context_question)
+            get_quiz(context_question)
         except Exception as e:
             st.error("A timeout has occurred on Clarifai's side when generating the quiz questions. "
                      "Please try again later")
