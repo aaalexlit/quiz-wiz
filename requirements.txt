@@ -8,3 +8,4 @@ pydub
 langchainhub
 unstructured
 pdf2image
+pdfminer
