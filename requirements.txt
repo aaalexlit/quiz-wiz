@@ -8,4 +8,4 @@ pydub
 langchainhub
 unstructured==0.10.15
 pdf2image
-pdfminer
+pdfminer-six
