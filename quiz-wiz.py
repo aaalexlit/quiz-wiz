@@ -73,7 +73,7 @@ quizz_chain = LLMChain(prompt=QUIZ_GEN_PROMPT, llm=langchain_llm)
 
 def connect_to_weaviate():
     return weaviate.Client(
-        url="https://streamlit-llm-hackathon-4yu6ne2w.weaviate.network",
+        url="https://streamlit-llm-hackathon-55r71kmd.weaviate.network",
         auth_client_secret=auth_config
     )
 
